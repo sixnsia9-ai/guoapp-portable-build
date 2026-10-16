@@ -14,6 +14,34 @@ void main() {
     return LocalStore(await SharedPreferences.getInstance());
   }
 
+  if (allSourcesEnabled) {
+    testWidgets('desktop random switch chooses another permitted source', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(1280, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final local = await store();
+      await local.disableSourceGate();
+      addTearDown(local.dispose);
+      await tester.pumpWidget(
+        DuanjuApp(repository: FixtureRepository(), store: local),
+      );
+      await tester.pumpAndSettle();
+      for (var i = 0; i < 3; i++) {
+        final previous = local.source;
+        await tester.tap(find.byKey(const ValueKey('random-source')));
+        await tester.pumpAndSettle();
+        expect(local.source, isNot(previous));
+        expect(
+          local.sources.any((source) => source.id == local.source),
+          isTrue,
+        );
+      }
+    });
+  }
+
   for (final size in [const Size(390, 844), const Size(1280, 800)]) {
     testWidgets('catalog, VIP filter and fresh details at $size', (
       tester,

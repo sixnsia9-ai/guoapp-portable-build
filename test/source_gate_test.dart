@@ -2,6 +2,7 @@ import 'package:duanju_app/app_build.dart';
 import 'package:duanju_app/local_store.dart';
 import 'package:duanju_app/source_gate_dialog.dart';
 import 'package:duanju_app/source_gate_taps.dart';
+import 'package:duanju_app/portable_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -35,6 +36,14 @@ void main() {
     // 未启用密码锁时无处输入密码，需要先在弹窗里启用。
     await expectLater(store.unlockSources('666'), throwsStateError);
     expect(store.sourcesUnlocked, isFalse);
+  });
+
+  test('fresh portable storage shows every compiled source', () async {
+    portableStorageEnabled = true;
+    addTearDown(() => portableStorageEnabled = false);
+    final store = await create();
+    expect(store.sourceGateOff, isTrue);
+    expect(store.sources.length, allSourcesEnabled ? 11 : 1);
   });
 
   test('enabling the gate hides restricted sources and unlocks once', () async {

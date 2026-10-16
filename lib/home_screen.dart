@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -71,6 +72,7 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _selectionMode = false;
   bool _showRecommendations = false;
   final _recentTaps = RepeatTapGate();
+  final _random = Random();
   String _sourceSignature = '';
   bool _catalogLoadScheduled = false;
 
@@ -255,9 +257,21 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _changeGroup(SourceGroup group) {
+    if (group.id == 'random') {
+      _randomSource();
+      return;
+    }
     if (_group.id != group.id) {
       _changeSource(group.sources.first, allSources: group.id == 'all');
     }
+  }
+
+  void _randomSource() {
+    final groups = _sourceGroups
+        .where((group) => group.id != 'all' && group.id != _group.id)
+        .toList();
+    if (groups.isEmpty) return;
+    _changeGroup(groups[_random.nextInt(groups.length)]);
   }
 
   void _changeCategory(String category) {
@@ -845,6 +859,11 @@ class _HomeScreenState extends State<HomeScreen> {
                             ],
                           ),
                         ),
+                      if (!desktop && _sourceGroups.length > 2)
+                        const PopupMenuItem(
+                          value: SourceGroup('random', '随机切换', []),
+                          child: Text('随机切换'),
+                        ),
                     ],
                     child: SizedBox(
                       height: 48,
@@ -890,6 +909,13 @@ class _HomeScreenState extends State<HomeScreen> {
                     icon: const Icon(Icons.sync_rounded),
                   ),
                 if (_tab == 0) ...[
+                  if (desktop && _sourceGroups.length > 2)
+                    IconButton(
+                      key: const ValueKey('random-source'),
+                      tooltip: '随机切换站源',
+                      onPressed: _randomSource,
+                      icon: const Icon(Icons.shuffle_rounded),
+                    ),
                   if (!_showRecommendations)
                     IconButton(
                       tooltip: '排序与筛选 · ${widget.store.catalogView.sort.label}',

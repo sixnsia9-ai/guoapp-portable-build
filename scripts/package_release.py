@@ -47,6 +47,7 @@ else:
         raise SystemExit('Windows 安装包缺少文件：' + ', '.join(missing))
     target = output / f'{variant.slug}-{version}-windows-x64.zip'
     with zipfile.ZipFile(target, 'w', zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr('portable.flag', 'Windows portable storage\n')
         for source in sorted(bundle.rglob('*')):
             if source.is_file():
                 relative = source.relative_to(bundle).as_posix()
