@@ -18,20 +18,23 @@ void main() {
     SharedPreferences.setMockInitialValues({'source': 'huangdou'});
     final store = testStore(await SharedPreferences.getInstance());
     expect(appSlug, allSourcesEnabled ? 'zhenguojian' : 'hongguojian');
-    // 默认只显示红果、韩小圈、鬼片网与青空次元，其余站源需要密码解锁。
-    expect(store.sources.length, allSourcesEnabled ? 4 : 1);
+    // 默认只显示红果、韩小圈与青空次元，其余站源需要密码解锁。
+    expect(store.sources.length, allSourcesEnabled ? 3 : 1);
     expect(
       SourceSite.values.any((source) => source.id == 'dsd'),
       allSourcesEnabled,
     );
     expect(SourceSite.isAvailable('dsd'), allSourcesEnabled);
     expect(SourceSite.isKnown('dsd'), isTrue);
+    expect(SourceSite.isKnown('guipian'), isTrue);
+    expect(SourceSite.isAvailable('guipian'), isFalse);
+    expect(store.allowsSource('guipian'), isFalse);
     expect(SourceSite.byId('dsd').name, '帝果');
     expect(store.allowsSource('dsd'), isFalse);
     expect(store.source, 'hongguo');
     await store.enableSourceGate('666666');
     expect(store.sourcesUnlocked, isTrue);
-    expect(store.sources.length, allSourcesEnabled ? 11 : 1);
+    expect(store.sources.length, allSourcesEnabled ? 10 : 1);
     expect(store.allowsSource('dsd'), allSourcesEnabled);
     store.dispose();
   });
@@ -147,6 +150,33 @@ void main() {
     store.dispose();
   });
 
+  test('removed Guipian source keeps existing profile readable', () async {
+    SharedPreferences.setMockInitialValues({
+      'profiles': jsonEncode([
+        LocalProfile(
+          id: 'default',
+          name: '管理员',
+          admin: true,
+          salt: '0' * 32,
+          pinHash: '1' * 64,
+        ).toJson(),
+        const LocalProfile(
+          id: 'viewer',
+          name: '旧用户',
+          sources: ['guipian'],
+        ).toJson(),
+      ]),
+      'activeProfile': 'viewer',
+      'profile.viewer.source': 'guipian',
+    });
+    final store = testStore(await SharedPreferences.getInstance());
+    expect(store.configurationError, isNull);
+    expect(store.profile.sources, ['guipian']);
+    expect(store.sources, isEmpty);
+    expect(store.source, isEmpty);
+    store.dispose();
+  });
+
   test(
     'background requests reject unavailable sources before native I/O',
     () async {
@@ -156,6 +186,7 @@ void main() {
             .where((source) => !SourceSite.isAvailable(source.id))
             .map((source) => source.id),
         'unknown',
+        'guipian',
       ];
       for (final source in denied) {
         final drama = Drama(id: '$source:123', source: source, title: '合成数据');

@@ -13,7 +13,6 @@ class SourceSite {
       id == 'yeguo' ||
       id == 'dsd' ||
       id == 'sorani' ||
-      id == 'guipian' ||
       id == 'hanxiaoquan';
   bool get searchSuggestions => id == 'hongguo';
   String get groupId => switch (id) {
@@ -31,15 +30,14 @@ class SourceSite {
   static const hongguo = SourceSite('hongguo', '红果', '短剧 · 漫剧 · AI 剧');
   static const dsd = SourceSite('dsd', '帝果', '分类视频 · 在线搜索');
   static const sorani = SourceSite('sorani', '青空', '番剧 · 剧场动画 · 特摄');
-  static const guipian = SourceSite('guipian', '鬼片', '鬼片 · 电视剧 · 动漫');
   static const hanxiaoquan = SourceSite(
     'hanxiaoquan',
     '韩小圈',
     '韩剧 · 韩国电影 · 综艺动漫',
   );
 
-  /// 默认可见的站源：红果、韩小圈、鬼片网、青空次元。
-  static const primaryValues = [hongguo, hanxiaoquan, guipian, sorani];
+  /// 默认可见的站源：红果、韩小圈、青空次元。
+  static const primaryValues = [hongguo, hanxiaoquan, sorani];
 
   /// 敏感站源：默认隐藏，输入解锁密码后才显示。
   static const restrictedValues = [
@@ -55,7 +53,8 @@ class SourceSite {
   static const allValues = [...primaryValues, ...restrictedValues];
   static const values = allSourcesEnabled ? knownValues : [hongguo];
   static bool isAvailable(String id) => values.any((site) => site.id == id);
-  static bool isKnown(String id) => allValues.any((site) => site.id == id);
+  static bool isKnown(String id) =>
+      id == 'guipian' || allValues.any((site) => site.id == id);
   static bool isPrimary(String id) =>
       primaryValues.any((site) => site.id == id);
   static bool isRestricted(String id) =>
