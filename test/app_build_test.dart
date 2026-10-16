@@ -73,9 +73,13 @@ void main() {
       ]);
       expect(library['history'], hasLength(2));
       await store.importBackup(backup);
+      await store.enableSourceGate('666666');
       expect(store.preferences.getString('source'), 'huangdou');
       expect(store.history, hasLength(allSourcesEnabled ? 2 : 1));
-      expect(store.favorites.map((drama) => drama.id), [other.id]);
+      expect(
+        store.favorites.map((drama) => drama.id),
+        allSourcesEnabled ? [other.id] : <String>[],
+      );
       store.dispose();
     },
   );
