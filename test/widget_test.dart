@@ -15,31 +15,47 @@ void main() {
   }
 
   if (allSourcesEnabled) {
-    testWidgets('desktop random switch chooses another permitted source', (
-      tester,
-    ) async {
-      tester.view.physicalSize = const Size(1280, 800);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-      final local = await store();
-      await local.disableSourceGate();
-      addTearDown(local.dispose);
-      await tester.pumpWidget(
-        DuanjuApp(repository: FixtureRepository(), store: local),
-      );
-      await tester.pumpAndSettle();
-      for (var i = 0; i < 3; i++) {
-        final previous = local.source;
-        await tester.tap(find.byKey(const ValueKey('random-source')));
-        await tester.pumpAndSettle();
-        expect(local.source, isNot(previous));
-        expect(
-          local.sources.any((source) => source.id == local.source),
-          isTrue,
+    testWidgets(
+      'desktop source dropdown selects and randomizes permitted sources',
+      (tester) async {
+        tester.view.physicalSize = const Size(1280, 800);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        final local = await store();
+        addTearDown(local.dispose);
+        await tester.pumpWidget(
+          DuanjuApp(repository: FixtureRepository(), store: local),
         );
-      }
-    });
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const ValueKey('source-dropdown')));
+        await tester.pumpAndSettle();
+        expect(find.text('黄豆'), findsNothing);
+        await tester.tap(find.text('韩小圈'));
+        await tester.pumpAndSettle();
+        expect(local.source, 'hanxiaoquan');
+        await local.disableSourceGate();
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const ValueKey('source-dropdown')));
+        await tester.pumpAndSettle();
+        expect(find.text('黄豆'), findsOneWidget);
+        await tester.tap(find.text('黄豆'));
+        await tester.pumpAndSettle();
+        expect(local.source, 'huangdou');
+        for (var i = 0; i < 3; i++) {
+          final previous = local.source;
+          await tester.tap(find.byKey(const ValueKey('source-dropdown')));
+          await tester.pumpAndSettle();
+          await tester.tap(find.text('随机切换'));
+          await tester.pumpAndSettle();
+          expect(local.source, isNot(previous));
+          expect(
+            local.sources.any((source) => source.id == local.source),
+            isTrue,
+          );
+        }
+      },
+    );
   }
 
   for (final size in [const Size(390, 844), const Size(1280, 800)]) {

@@ -274,6 +274,27 @@ class _HomeScreenState extends State<HomeScreen> {
     _changeGroup(groups[_random.nextInt(groups.length)]);
   }
 
+  List<PopupMenuEntry<SourceGroup>> _sourceMenuItems(BuildContext _) => [
+    for (final group in _sourceGroups)
+      PopupMenuItem(
+        value: group,
+        child: Row(
+          children: [
+            Expanded(child: Text(group.name)),
+            if (group.id == _group.id)
+              const Icon(Icons.check_rounded, size: 20),
+          ],
+        ),
+      ),
+    if (_sourceGroups.length > 2) ...[
+      const PopupMenuDivider(),
+      const PopupMenuItem(
+        value: SourceGroup('random', '随机切换', []),
+        child: Text('随机切换'),
+      ),
+    ],
+  ];
+
   void _changeCategory(String category) {
     if (category == _recommendationCategory && _group.id == 'hongguo') {
       if (_showRecommendations) return;
@@ -847,24 +868,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     tooltip: '切换站源',
                     enabled: _sourceGroups.length > 1,
                     onSelected: _changeGroup,
-                    itemBuilder: (_) => [
-                      for (final group in _sourceGroups)
-                        PopupMenuItem(
-                          value: group,
-                          child: Row(
-                            children: [
-                              Expanded(child: Text(group.name)),
-                              if (group.id == _group.id)
-                                const Icon(Icons.check_rounded, size: 20),
-                            ],
-                          ),
-                        ),
-                      if (!desktop && _sourceGroups.length > 2)
-                        const PopupMenuItem(
-                          value: SourceGroup('random', '随机切换', []),
-                          child: Text('随机切换'),
-                        ),
-                    ],
+                    itemBuilder: _sourceMenuItems,
                     child: SizedBox(
                       height: 48,
                       child: Row(
@@ -910,11 +914,22 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 if (_tab == 0) ...[
                   if (desktop && _sourceGroups.length > 2)
-                    IconButton(
-                      key: const ValueKey('random-source'),
-                      tooltip: '随机切换站源',
-                      onPressed: _randomSource,
-                      icon: const Icon(Icons.shuffle_rounded),
+                    PopupMenuButton<SourceGroup>(
+                      key: const ValueKey('source-dropdown'),
+                      tooltip: '切换站源',
+                      position: PopupMenuPosition.under,
+                      onSelected: _changeGroup,
+                      itemBuilder: _sourceMenuItems,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(_group.name),
+                            const Icon(Icons.arrow_drop_down_rounded),
+                          ],
+                        ),
+                      ),
                     ),
                   if (!_showRecommendations)
                     IconButton(
