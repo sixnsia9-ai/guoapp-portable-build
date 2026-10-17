@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:duanju_app/local_store.dart';
 import 'package:duanju_app/models.dart';
 import 'package:duanju_app/player_screen.dart';
@@ -61,6 +63,25 @@ void main() {
     expect(player.disposed, isTrue);
     expect(tester.takeException(), isNull);
   }
+
+  testWidgets('Windows selects automatic subtitles for each episode', (
+    tester,
+  ) async {
+    final repository = RouteRepository();
+    final player = ScriptedPlayer();
+    await mount(tester, repository, player);
+    expect(
+      player.selectedSubtitles.map((track) => track.id).toList(),
+      Platform.isWindows ? ['auto'] : isEmpty,
+    );
+    await tester.tap(find.byKey(const ValueKey('play-episode-2')));
+    await settleOperations(tester);
+    expect(
+      player.selectedSubtitles.map((track) => track.id).toList(),
+      Platform.isWindows ? ['auto', 'auto'] : isEmpty,
+    );
+    await unmount(tester, player);
+  });
 
   testWidgets(
     'duplicate errors switch once while keeping progress, rate and pause state',

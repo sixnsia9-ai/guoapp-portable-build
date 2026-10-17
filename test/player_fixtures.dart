@@ -9,6 +9,7 @@ class ScriptedPlayer extends PlatformPlayer {
   ScriptedPlayer() : super(configuration: const PlayerConfiguration());
   final opened = <Media>[];
   final played = <bool>[];
+  final selectedSubtitles = <SubtitleTrack>[];
   bool disposed = false;
   final rates = <double>[];
 
@@ -65,6 +66,11 @@ class ScriptedPlayer extends PlatformPlayer {
     rates.add(rate);
     state = state.copyWith(rate: rate);
     rateController.add(rate);
+  }
+
+  @override
+  Future<void> setSubtitleTrack(SubtitleTrack track) async {
+    selectedSubtitles.add(track);
   }
 
   @override

@@ -185,9 +185,10 @@ class _PlayerScreenState extends State<PlayerScreen>
         (Platform.isAndroid
             ? LunaExoPlayer()
             : Player(
-                configuration: const PlayerConfiguration(
+                configuration: PlayerConfiguration(
                   bufferSize: 32 * 1024 * 1024,
                   logLevel: MPVLogLevel.error,
+                  libass: Platform.isWindows,
                 ),
               ));
     _video = widget.videoBuilder == null && !Platform.isAndroid
@@ -1014,8 +1015,14 @@ class _PlayerScreenState extends State<PlayerScreen>
               await platform.setProperty('vd-lavc-skiploopfilter', 'all');
               await platform.setProperty('vd-lavc-skipidct', 'all');
               await platform.setProperty('vd-lavc-threads', '2');
-              await platform.setProperty('demuxer-max-bytes', '${4 * 1024 * 1024}');
-              await platform.setProperty('demuxer-max-back-bytes', '${1 * 1024 * 1024}');
+              await platform.setProperty(
+                'demuxer-max-bytes',
+                '${4 * 1024 * 1024}',
+              );
+              await platform.setProperty(
+                'demuxer-max-back-bytes',
+                '${1 * 1024 * 1024}',
+              );
               await platform.setProperty('demuxer-readahead-secs', '5');
             } else {
               await platform.setProperty('hwdec', 'auto-safe');
@@ -1045,7 +1052,9 @@ class _PlayerScreenState extends State<PlayerScreen>
         _plan = plan;
         installed = true;
         _acceptErrors = true;
-        DiaryService.add('[Play] 调用 _player.open: url=${plan.url}, headers=${plan.headers.keys.toList()}');
+        DiaryService.add(
+          '[Play] 调用 _player.open: url=${plan.url}, headers=${plan.headers.keys.toList()}',
+        );
         await _player.open(
           Media(
             plan.url,
@@ -1059,6 +1068,14 @@ class _PlayerScreenState extends State<PlayerScreen>
         if (_closed || ticket != _generation) {
           return;
         }
+        if (Platform.isWindows) {
+          try {
+            await _player.setSubtitleTrack(SubtitleTrack.auto());
+          } catch (error) {
+            DiaryService.add('[Play] 自动字幕选轨失败: $error');
+          }
+        }
+        if (_closed || ticket != _generation) return;
         _openedIndex = index;
         _enhancement.mediaReady();
         _attachLanPlayback();
@@ -1737,6 +1754,9 @@ class _PlayerScreenState extends State<PlayerScreen>
                 Video(
                   controller: _video!,
                   fit: BoxFit.contain,
+                  subtitleViewConfiguration: SubtitleViewConfiguration(
+                    visible: !Platform.isWindows,
+                  ),
                   controls: (_) => layeredControls,
                 ),
               if (_loading && !hideOverlayForPictureInPicture)
@@ -1768,7 +1788,8 @@ class _PlayerScreenState extends State<PlayerScreen>
                       crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
                         FilledButton.tonalIcon(
-                          onPressed: () => DiaryService.showDiaryDialog(context),
+                          onPressed: () =>
+                              DiaryService.showDiaryDialog(context),
                           icon: const Icon(Icons.receipt_long_rounded),
                           label: const Text('查看播放日记'),
                         ),
@@ -1779,8 +1800,8 @@ class _PlayerScreenState extends State<PlayerScreen>
                             label: const Text('改为在线播放'),
                           )
                         else if (!_localFailure &&
-                              !widget.localOnly &&
-                              widget.repository.supportsSourceManagement)
+                            !widget.localOnly &&
+                            widget.repository.supportsSourceManagement)
                           SourceDiagnosticsButton(
                             repository: widget.repository,
                             store: widget.store,
