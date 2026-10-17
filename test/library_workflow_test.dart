@@ -20,8 +20,6 @@ void main() {
   Future<LocalStore> create() async {
     SharedPreferences.setMockInitialValues({});
     final store = testStore(await SharedPreferences.getInstance());
-    // 管理员默认可见全部站源；显式启用密码锁以覆盖解锁后的站源范围。
-    await store.enableSourceGate('666666');
     addTearDown(store.dispose);
     return store;
   }
@@ -80,7 +78,7 @@ void main() {
         ..startFailures.add('hongguo');
       final updater = LibraryUpdater(repository, store);
       addTearDown(updater.dispose);
-      await updater.update(SourceSite.knownValues);
+      await updater.update(SourceSite.allValues);
       expect(
         repository.starts,
         store.sources.map((source) => '${source.id}:update').toList(),
