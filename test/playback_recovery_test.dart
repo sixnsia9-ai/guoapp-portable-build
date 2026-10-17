@@ -27,6 +27,32 @@ void main() {
     expect(recovery.next(route(0, count: 1)), PlaybackRecoveryAction.stop);
   });
 
+  test(
+    'stable playback permits another fresh resolution after a later expiry',
+    () {
+      final start = DateTime(2026, 10, 17);
+      final plan = route(0, count: 1);
+      final earlyFailure = PlaybackRecovery();
+      expect(earlyFailure.next(plan), PlaybackRecoveryAction.refresh);
+      earlyFailure.resumed(const Duration(minutes: 3), start);
+      earlyFailure.progressed(
+        const Duration(minutes: 3, seconds: 15),
+        start.add(const Duration(seconds: 14)),
+      );
+      expect(earlyFailure.next(plan), PlaybackRecoveryAction.stop);
+
+      final recovery = PlaybackRecovery();
+      expect(recovery.next(plan), PlaybackRecoveryAction.refresh);
+      recovery.resumed(const Duration(minutes: 3), start);
+      recovery.progressed(
+        const Duration(minutes: 3, seconds: 29),
+        start.add(const Duration(seconds: 29)),
+      );
+      expect(recovery.next(plan), PlaybackRecoveryAction.refresh);
+      expect(recovery.next(plan), PlaybackRecoveryAction.stop);
+    },
+  );
+
   test('many failing alternatives cannot exceed the automatic retry limit', () {
     final recovery = PlaybackRecovery();
     for (var i = 0; i < 3; i++) {
