@@ -1754,9 +1754,9 @@ class _PlayerScreenState extends State<PlayerScreen>
                 Video(
                   controller: _video!,
                   fit: BoxFit.contain,
-                  subtitleViewConfiguration: SubtitleViewConfiguration(
-                    visible: !Platform.isWindows,
-                  ),
+                  subtitleViewConfiguration: Platform.isWindows
+                      ? const SubtitleViewConfiguration(visible: false)
+                      : const SubtitleViewConfiguration(),
                   controls: (_) => layeredControls,
                 ),
               if (_loading && !hideOverlayForPictureInPicture)
