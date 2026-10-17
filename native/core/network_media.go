@@ -164,7 +164,8 @@ func (d *Downloader) doMediaRequestWithClient(request *http.Request, client *htt
 			}
 			response.Body = io.NopCloser(bytes.NewReader(body))
 		}
-		if d.limiter != nil {
+		if d.limiter != nil && !(response.StatusCode == http.StatusForbidden &&
+			providerSourceForURL(request.URL.String()) == sourceDSD && dsdVideoDirectory.MatchString(request.URL.Path)) {
 			d.limiter.observe(request, response)
 		}
 		observeSourceResponse(request.Context(), response)
