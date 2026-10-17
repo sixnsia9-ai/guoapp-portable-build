@@ -244,7 +244,7 @@ void main() {
         ..paginate = true;
       final browser = CatalogBrowser(repository);
       final group = SourceGroup.fromSources(
-        SourceSite.knownValues,
+        SourceSite.allValues,
       ).firstWhere((group) => group.id == 'huangguo');
       final first = await browser.load(group);
       expect(first.items.length, 2);
