@@ -7,6 +7,7 @@ import 'core_bridge.dart';
 import 'local_store.dart';
 import 'models.dart';
 import 'source_status.dart';
+import 'widgets.dart';
 
 String sourceTimestamp(DateTime? value) {
   if (value == null) return '尚无记录';
@@ -183,6 +184,22 @@ class _SourcesScreenState extends State<SourcesScreen> {
               child: ListView(
                 padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottomInset),
                 children: [
+                  SwitchListTile.adaptive(
+                    key: const ValueKey('auto-update-sources'),
+                    title: const Text('自动更新站源目录'),
+                    subtitle: const Text('开启后，软件运行时每天检查一次可用站源；更新失败仍保留已有剧集。'),
+                    value: widget.store.autoUpdateSources,
+                    onChanged:
+                        widget.store.profile.admin &&
+                            widget.repository.supportsSourceManagement
+                        ? (value) => unawaited(
+                            saveUserChange(
+                              context,
+                              () => widget.store.setAutoUpdateSources(value),
+                            ),
+                          )
+                        : null,
+                  ),
                   const Padding(
                     padding: EdgeInsets.only(bottom: 16),
                     child: Text(

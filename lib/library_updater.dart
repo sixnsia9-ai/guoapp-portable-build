@@ -21,6 +21,7 @@ class LibraryUpdater extends ChangeNotifier {
   final _stopRequested = <String>{};
   final _revisions = <String, int>{};
   final _delivered = <String, String>{};
+  final _autoAttempted = <String, DateTime>{};
   Timer? _timer;
   bool _polling = false;
   bool _disposed = false;
@@ -93,6 +94,31 @@ class LibraryUpdater extends ChangeNotifier {
     } finally {
       _polling = false;
       _notify();
+      if (_valid && store.autoUpdateSources) {
+        final now = DateTime.now();
+        final due = <SourceSite>[];
+        for (final source in store.sources) {
+          final status = _statuses[source.id];
+          if (status == null || busy(source.id) || status.retrySeconds > 0) {
+            continue;
+          }
+          final last =
+              [
+                status.updatedAt,
+                if (status.operation == 'update') status.finishedAt,
+                _autoAttempted[source.id],
+              ].whereType<DateTime>().fold<DateTime?>(
+                null,
+                (latest, time) =>
+                    latest == null || time.isAfter(latest) ? time : latest,
+              );
+          if (last == null || now.difference(last) >= const Duration(days: 1)) {
+            _autoAttempted[source.id] = now;
+            due.add(source);
+          }
+        }
+        if (due.isNotEmpty) unawaited(update(due));
+      }
     }
   }
 
