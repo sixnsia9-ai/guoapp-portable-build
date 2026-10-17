@@ -31,6 +31,7 @@ class LocalSnapshot {
     'displayMode',
     'themeMode',
     'autoExport',
+    'autoUpdateSources',
     'exportPosters',
     'sourceGateEnabled',
     'sourceGateOff',
@@ -79,6 +80,7 @@ class LocalSnapshot {
       final boolean = {
         'hideVip',
         'autoExport',
+        'autoUpdateSources',
         'exportPosters',
         'sourceGateEnabled',
         'sourceGateOff',
