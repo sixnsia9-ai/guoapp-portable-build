@@ -3,12 +3,10 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'app_build.dart';
 import 'local_profiles.dart';
 import 'local_snapshot.dart';
 import 'models.dart';
 import 'playback_preferences.dart';
-import 'portable_storage.dart';
 import 'download_preferences.dart';
 import 'catalog_sort.dart';
 import 'follow_state.dart';
@@ -18,7 +16,7 @@ import 'lan_sync_models.dart';
 part 'local_store_sync.dart';
 
 class LocalStore extends ChangeNotifier {
-  /// [pinHasher] ��ע�룬���ڲ����滻��Ĭ�ϵ� isolate ��ϣʵ�֡�
+  /// [pinHasher] 可注入，便于测试替换掉默认的 isolate 哈希实现。
   LocalStore(
     this.preferences, {
     Future<String> Function(String, String)? pinHasher,
@@ -46,11 +44,6 @@ class LocalStore extends ChangeNotifier {
   String? _configurationError;
   int _epoch = 0;
   int _failures = 0;
-  bool _sourcesUnlocked = false;
-  bool _gateEnabled = false;
-  bool _gateOff = false;
-  String _gateSalt = '';
-  String _gateHash = '';
   DateTime _retryAfter = DateTime(2000);
 
   void _initialize() {
@@ -62,10 +55,10 @@ class LocalStore extends ChangeNotifier {
               _snapshot!.values.keys.any(
                 (key) => key.startsWith('profile.'),
               ))) {
-        throw const FormatException('�����û�����ȱʧ');
+        throw const FormatException('已有用户配置缺失');
       }
       _profiles = raw == null
-          ? [const LocalProfile(id: 'default', name: '����Ա', admin: true)]
+          ? [const LocalProfile(id: 'default', name: '管理员', admin: true)]
           : _readProfiles(jsonDecode(raw));
       _current = _snapshot!.getString('activeProfile') ?? 'default';
       if (!_profiles.any((profile) => profile.id == _current)) {
@@ -73,10 +66,9 @@ class LocalStore extends ChangeNotifier {
       }
       _configurationError = null;
       _locked = forceLogin && profile.protected;
-      _loadSourceGate();
       _loadLibrary();
     } catch (_) {
-      _block('�����û������𻵣����������ʡ�ԭʼ��¼�ѱ����������¶�ȡ��ӱ��ݻָ���');
+      _block('本地用户配置损坏，已锁定访问。原始记录已保留，请重新读取或从备份恢复。');
     }
   }
 
@@ -93,7 +85,7 @@ class LocalStore extends ChangeNotifier {
         profiles.where((profile) => profile.admin).length != 1 ||
         (profiles.length > 1 &&
             !profiles.firstWhere((profile) => profile.admin).protected)) {
-      throw const FormatException('�û�������Ч');
+      throw const FormatException('用户配置无效');
     }
     return profiles;
   }
@@ -101,9 +93,8 @@ class LocalStore extends ChangeNotifier {
   void _block(String message) {
     _configurationError = message;
     _locked = true;
-    _sourcesUnlocked = false;
     _profiles = [
-      const LocalProfile(id: 'default', name: '���ô��ָ�', download: false),
+      const LocalProfile(id: 'default', name: '配置待恢复', download: false),
     ];
     _current = 'default';
     _history.clear();
@@ -135,126 +126,9 @@ class LocalStore extends ChangeNotifier {
 
   bool get canDownload => !locked && (profile.admin || profile.download);
   bool allowsSource(String source) =>
-      !locked &&
-      SourceSite.isAvailable(source) &&
-      profile.allows(source) &&
-      (_gateOff || _sourcesUnlocked || SourceSite.isPrimary(source));
-  List<SourceSite> get sources => SourceSite.visibleValues(
-    unlocked: _gateOff || _sourcesUnlocked,
-  ).where((site) => allowsSource(site.id)).toList();
-
-  /// Ĭ�����ص�վԴ�Ƿ��ѽ���������״ֻ̬�ڱ�����������Ч��������ָ����ء�
-  bool get sourcesUnlocked => _gateOff || _sourcesUnlocked;
-
-  /// �Ƿ�������վԴ��������
-  bool get sourceGateEnabled => _gateEnabled;
-
-  bool get sourceGateConfigured => _gateSalt.isNotEmpty && _gateHash.isNotEmpty;
-
-  /// ��ǰ�Ƿ��ڡ���ʹ�����롢��ʾȫ��վԴ��״̬��
-  bool get sourceGateOff => _gateOff;
-
-  void _loadSourceGate() {
-    final enabled = _bool('sourceGateEnabled') ?? false;
-    final off = _bool('sourceGateOff') ?? false;
-    final salt = _string('sourceGateSalt') ?? '';
-    final hash = _string('sourceGateHash') ?? '';
-    final valid =
-        enabled &&
-        RegExp(r'^[a-f0-9]{32}$').hasMatch(salt) &&
-        RegExp(r'^[a-f0-9]{64}$').hasMatch(hash);
-    _gateEnabled = valid;
-    _gateOff =
-        !valid &&
-        (off ||
-            ((portableStorageEnabled ||
-                    (allSourcesEnabled &&
-                        defaultTargetPlatform == TargetPlatform.windows)) &&
-                _string('sourceGateEnabled') == null &&
-                _string('sourceGateOff') == null));
-    _gateSalt = valid ? salt : '';
-    _gateHash = valid ? hash : '';
-    _sourcesUnlocked = false;
-  }
-
-  Future<void> _checkSourcePin(String pin) async {
-    if (DateTime.now().isBefore(_retryAfter)) {
-      throw StateError('�����������Ƶ�������Ժ�����');
-    }
-    final actual = await _pinHasher(pin, _gateSalt);
-    var difference = actual.length ^ _gateHash.length;
-    for (var i = 0; i < actual.length && i < _gateHash.length; i++) {
-      difference |= actual.codeUnitAt(i) ^ _gateHash.codeUnitAt(i);
-    }
-    if (difference != 0) {
-      _failures++;
-      if (_failures >= 3) {
-        _retryAfter = DateTime.now().add(
-          Duration(seconds: (_failures * 2).clamp(0, 30)),
-        );
-      }
-      throw StateError('���벻��ȷ');
-    }
-    _failures = 0;
-  }
-
-  /// У�����벢����Ĭ�����ص�վԴ��������������Ч����
-  Future<void> unlockSources(String pin) => _queue(() async {
-    if (_configurationError != null) throw StateError('�����û������𻵣����Ȼָ�');
-    if (!_gateEnabled) throw StateError('��δ����վԴ������');
-    await _checkSourcePin(pin);
-    if (!_sourcesUnlocked) {
-      _sourcesUnlocked = true;
-      _notify();
-    }
-  });
-
-  /// ��������Ĭ�����ص�վԴ������������
-  void lockSources() {
-    if (!_gateEnabled || !_sourcesUnlocked) return;
-    _sourcesUnlocked = false;
-    _notify();
-  }
-
-  /// ���û������������������������
-  Future<void> enableSourceGate(String pin) => _queue(() async {
-    _requireAdmin();
-    final value = pin.trim();
-    if (!RegExp(r'^\d{3,12}$').hasMatch(value)) {
-      throw StateError('������Ҫ 3 �� 12 λ����');
-    }
-    final salt = randomProfileToken();
-    final hash = await _pinHasher(value, salt);
-    await _commit({
-      'sourceGateEnabled': true,
-      'sourceGateOff': false,
-      'sourceGateSalt': salt,
-      'sourceGateHash': hash,
-    });
-    _gateEnabled = true;
-    _gateOff = false;
-    _gateSalt = salt;
-    _gateHash = hash;
-    _sourcesUnlocked = true;
-    _notify();
-  });
-
-  /// �ر����빦�ܣ��ָ�ȫ��վԴ�ɼ���
-  Future<void> disableSourceGate() => _queue(() async {
-    _requireAdmin();
-    await _commit({
-      'sourceGateEnabled': false,
-      'sourceGateOff': true,
-      'sourceGateSalt': '',
-      'sourceGateHash': '',
-    });
-    _gateEnabled = false;
-    _gateOff = true;
-    _gateSalt = '';
-    _gateHash = '';
-    _sourcesUnlocked = false;
-    _notify();
-  });
+      !locked && SourceSite.isAvailable(source) && profile.allows(source);
+  List<SourceSite> get sources =>
+      SourceSite.values.where((site) => allowsSource(site.id)).toList();
 
   void _loadLibrary() {
     _lanDocumentCache = null;
@@ -442,7 +316,7 @@ class LocalStore extends ChangeNotifier {
     final epoch = _epoch;
     return _queue(() async {
       if (!allowsSource(source) || epoch != _epoch) {
-        throw StateError('��ǰ�û�û�д�վԴȨ��');
+        throw StateError('当前用户没有此站源权限');
       }
       await _commit({
         _key('source'): source,
@@ -482,7 +356,7 @@ class LocalStore extends ChangeNotifier {
     Set<String> clearSyncProgress = const {},
   }) async {
     final snapshot = _snapshot;
-    if (snapshot == null) throw StateError('���Ȼָ���������');
+    if (snapshot == null) throw StateError('请先恢复本地配置');
     final values = replace ? <String, Object>{} : snapshot.values;
     for (final key in remove) {
       values.remove(key);
@@ -524,7 +398,7 @@ class LocalStore extends ChangeNotifier {
     final epoch = _epoch;
     return _queue(() async {
       if (admin) _requireAdmin();
-      if (locked || epoch != _epoch) throw StateError('��ǰ�û��ѱ����������');
+      if (locked || epoch != _epoch) throw StateError('当前用户已变更，请重试');
       await _commit({key: value});
       _notify();
     });
@@ -538,7 +412,7 @@ class LocalStore extends ChangeNotifier {
       _setting('forceLogin', value, admin: true);
   Future<void> setHideVip(bool value) => _setting(_key('hideVip'), value);
   Future<void> setSource(String value) {
-    if (!allowsSource(value)) return Future.error(StateError('��ǰ�û�û�д�վԴȨ��'));
+    if (!allowsSource(value)) return Future.error(StateError('当前用户没有此站源权限'));
     return _setting(_key('source'), value);
   }
 
@@ -570,7 +444,7 @@ class LocalStore extends ChangeNotifier {
         entries.remove(drama.id);
         states.remove(drama.id);
       } else {
-        if (entries.length >= 20000) throw StateError('׷�������Ѵ����ޣ���������׷��');
+        if (entries.length >= 20000) throw StateError('追剧数量已达上限，请先整理追剧');
         entries[drama.id] = drama;
         states[drama.id] = FollowState.initial(drama, _history[drama.id]);
       }
@@ -594,7 +468,7 @@ class LocalStore extends ChangeNotifier {
     return _queue(() async {
       if (!allowsSource(drama.source) || epoch != _epoch) return;
       if (!_favorites.containsKey(drama.id) && _favorites.length >= 20000) {
-        throw StateError('׷�������Ѵ����ޣ���������׷��');
+        throw StateError('追剧数量已达上限，请先整理追剧');
       }
       final current = _favorites[drama.id]?.merge(drama) ?? drama;
       final entries = Map.of(_favorites)..[drama.id] = current;
@@ -867,12 +741,12 @@ class LocalStore extends ChangeNotifier {
   }
 
   void _requireAdmin() {
-    if (locked || !profile.admin) throw StateError('������Ա�����޸Ĵ�����');
+    if (locked || !profile.admin) throw StateError('仅管理员可以修改此设置');
   }
 
   Future<void> _checkPin(LocalProfile target, String pin) async {
     if (DateTime.now().isBefore(_retryAfter)) {
-      throw StateError('�����������Ƶ�������Ժ�����');
+      throw StateError('密码输入过于频繁，请稍后再试');
     }
     if (!await checkProfilePin(target, pin)) {
       _failures++;
@@ -881,13 +755,13 @@ class LocalStore extends ChangeNotifier {
           Duration(seconds: (_failures * 2).clamp(0, 30)),
         );
       }
-      throw StateError('���벻��ȷ');
+      throw StateError('密码不正确');
     }
     _failures = 0;
   }
 
   Future<void> switchProfile(String id, {String pin = ''}) => _queue(() async {
-    if (_configurationError != null) throw StateError('�����û������𻵣����Ȼָ�');
+    if (_configurationError != null) throw StateError('本地用户配置损坏，请先恢复');
     final target = _profiles.firstWhere((profile) => profile.id == id);
     await _checkPin(target, pin);
     await _commit({'activeProfile': id});
@@ -916,29 +790,29 @@ class LocalStore extends ChangeNotifier {
     final targetId = old?.id ?? randomProfileToken();
     final cleanName = name.trim();
     if (cleanName.isEmpty || cleanName.length > 40) {
-      throw StateError('�û�����Ҫ 1 �� 40 ���ַ�');
+      throw StateError('用户名需要 1 至 40 个字符');
     }
     if (sources.any((source) => !SourceSite.isKnown(source))) {
-      throw StateError('վԴ��Ч');
+      throw StateError('站源无效');
     }
     if (targetId != 'default' &&
         !_profiles.firstWhere((profile) => profile.admin).protected) {
-      throw StateError('����Ϊ����Ա�������룬�ٴ������޸������û�');
+      throw StateError('请先为管理员设置密码，再创建或修改其他用户');
     }
     if (old == null && _profiles.length >= 20) {
-      throw StateError('���֧�� 20 �������û�');
+      throw StateError('最多支持 20 个本地用户');
     }
     var salt = old?.salt ?? '', hash = old?.pinHash ?? '';
     if (pin != null) {
       if (pin.isEmpty) {
         if (targetId == 'default' && _profiles.length > 1) {
-          throw StateError('���������û�ʱ����ȡ������Ա����');
+          throw StateError('存在其他用户时不能取消管理员密码');
         }
         salt = '';
         hash = '';
       } else {
         if (pin.length < 6 || pin.length > 128) {
-          throw StateError('������Ҫ 6 �� 128 ���ַ�');
+          throw StateError('密码需要 6 至 128 个字符');
         }
         salt = randomProfileToken();
         hash = await _pinHasher(pin, salt);
@@ -976,7 +850,7 @@ class LocalStore extends ChangeNotifier {
   });
   Future<void> deleteProfile(String id) => _queue(() async {
     _requireAdmin();
-    if (id == 'default') throw StateError('����ɾ������Ա');
+    if (id == 'default') throw StateError('不能删除管理员');
     final profiles = _profiles.where((profile) => profile.id != id).toList();
     await _commit({
       'profiles': jsonEncode(
@@ -1032,7 +906,7 @@ class LocalStore extends ChangeNotifier {
       },
     });
     if (utf8.encode(content).length > 8 * 1024 * 1024) {
-      throw StateError('���ݳ��� 8 MiB �������ޣ�����������¼����δд�������ļ�');
+      throw StateError('备份超过 8 MiB 保存上限，请先整理记录；尚未写出备份文件');
     }
     validateBackup(content);
     return content;
@@ -1040,19 +914,19 @@ class LocalStore extends ChangeNotifier {
 
   Map<String, dynamic> validateBackup(String content) {
     if (utf8.encode(content).length > 8 * 1024 * 1024) {
-      throw const FormatException('�����ļ�����');
+      throw const FormatException('备份文件过大');
     }
     final data = jsonDecode(content) as Map<String, dynamic>;
     if (data['schema'] != 1 || data['app'] != 'zhenguojian') {
-      throw const FormatException('��֧�ֵı��ݸ�ʽ');
+      throw const FormatException('不支持的备份格式');
     }
     final profiles = _readProfiles(data['profiles']);
     if (data.containsKey('themeMode') &&
         !{'light', 'dark', 'system'}.contains(data['themeMode'])) {
-      throw const FormatException('��������������Ч');
+      throw const FormatException('备份主题设置无效');
     }
     if (data.containsKey('forceLogin') && data['forceLogin'] is! bool) {
-      throw const FormatException('���ݵ�¼������Ч');
+      throw const FormatException('备份登录设置无效');
     }
     final libraries = data['libraries'] as Map;
     for (final profile in profiles) {
@@ -1063,7 +937,7 @@ class LocalStore extends ChangeNotifier {
       if (media.length > 300 ||
           history.length > 300 ||
           favorites.length > 20000) {
-        throw const FormatException('���ݼ�¼����');
+        throw const FormatException('备份记录过多');
       }
       for (final row in [...history, ...media.values]) {
         WatchEntry.fromJson(Map<String, dynamic>.from(row as Map));
@@ -1077,19 +951,19 @@ class LocalStore extends ChangeNotifier {
       _readBackupFollowSync(library);
       if (states.length > 20000 ||
           states.keys.any((id) => id is! String || !favoriteIds.contains(id))) {
-        throw const FormatException('����׷��״̬��Ч');
+        throw const FormatException('备份追剧状态无效');
       }
       for (final row in states.values) {
         FollowState.fromJson(Map<String, dynamic>.from(row as Map));
       }
       if (seriesCandidates.length > 2000) {
-        throw const FormatException('����ϵ�к�ѡ����');
+        throw const FormatException('备份系列候选过多');
       }
       for (final row in seriesCandidates) {
         Drama.fromJson(Map<String, dynamic>.from(row as Map));
       }
       if (library['hideVip'] is! bool || library['source'] is! String) {
-        throw const FormatException('����������Ч');
+        throw const FormatException('备份设置无效');
       }
       PlaybackPreferences.fromJson(
         Map<String, dynamic>.from(library['playback'] as Map? ?? {}),
@@ -1105,7 +979,7 @@ class LocalStore extends ChangeNotifier {
           searches.any(
             (value) => value is! String || value.runes.length > 80,
           )) {
-        throw const FormatException('����������¼��Ч');
+        throw const FormatException('备份搜索记录无效');
       }
     }
     return data;
@@ -1168,7 +1042,6 @@ class LocalStore extends ChangeNotifier {
     _current = profiles.firstWhere((profile) => profile.admin).id;
     _configurationError = null;
     _locked = forceLogin && profile.protected;
-    _loadSourceGate();
     _loadLibrary();
     _epoch++;
     _notify();
@@ -1181,7 +1054,7 @@ class LocalStore extends ChangeNotifier {
 
   Future<void> recoverBackup(String content, {required String pin}) =>
       _queue(() async {
-        if (_configurationError == null) throw StateError('��������лָ�����');
+        if (_configurationError == null) throw StateError('请从设置中恢复备份');
         final data = validateBackup(content);
         LocalProfile? originalAdmin;
         try {
@@ -1210,14 +1083,14 @@ class LocalStore extends ChangeNotifier {
         final verifier = originalAdmin?.protected == true
             ? originalAdmin!
             : backupAdmin;
-        if (!verifier.protected) throw StateError('�޷���֤����Ա���ݣ���ʹ�ð�������Ա����ı��ݻָ�');
+        if (!verifier.protected) throw StateError('无法验证管理员身份，请使用包含管理员密码的备份恢复');
         await _checkPin(verifier, pin);
         _snapshot ??= LocalSnapshot.empty(preferences);
         await _installBackup(data);
       });
 
   String exportRecoveryData() {
-    if (_configurationError == null) throw StateError('��������е�������');
+    if (_configurationError == null) throw StateError('请从设置中导出备份');
     return jsonEncode({
       'app': 'zhenguojian',
       'recovery': true,
