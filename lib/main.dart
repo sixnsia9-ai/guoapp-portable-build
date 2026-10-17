@@ -26,7 +26,7 @@ import 'diary_service.dart';
 Future<void> main(List<String> arguments) async {
   WidgetsFlutterBinding.ensureInitialized();
   await configurePortableStorage();
-  DiaryService.add('[App] 应用启动，版本: 0.2.67+74, 平台: ${Platform.operatingSystem}');
+  DiaryService.add('[App] Ӧ���������汾: 0.2.69+76, ƽ̨: ${Platform.operatingSystem}');
   if (Platform.isAndroid) {
     await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     SystemChrome.setSystemUIOverlayStyle(AppTheme.systemBars(Brightness.dark));
@@ -142,7 +142,7 @@ class _AppBootstrapState extends State<AppBootstrap>
                 !link.receiving ||
                 store!.profileEpoch != epoch ||
                 !store!.allowsSource(request.detail.drama.source)) {
-              throw StateError('当前用户不能接收播放');
+              throw StateError('��ǰ�û����ܽ��ղ���');
             }
             await link.playbackHost?.stop();
             if (request.cancelled ||
@@ -150,10 +150,10 @@ class _AppBootstrapState extends State<AppBootstrap>
                 store!.locked ||
                 store!.profileEpoch != epoch ||
                 !link.receiving) {
-              throw StateError('播放接收已取消');
+              throw StateError('���Ž�����ȡ��');
             }
             final navigation = navigator.currentState;
-            if (navigation == null) throw StateError('接收设备界面尚未就绪');
+            if (navigation == null) throw StateError('�����豸������δ����');
             unawaited(
               navigation.pushAndRemoveUntil<void>(
                 MaterialPageRoute<void>(
@@ -287,7 +287,7 @@ class DuanjuApp extends StatelessWidget {
                     ),
                     const SizedBox(height: 24),
                     Text(
-                      bootstrapError ?? '正在打开$appName',
+                      bootstrapError ?? '���ڴ�$appName',
                       textAlign: TextAlign.center,
                       style: const TextStyle(fontSize: 18),
                     ),
@@ -297,7 +297,7 @@ class DuanjuApp extends StatelessWidget {
                     else
                       FilledButton(
                         onPressed: onRetry,
-                        child: const Text('重新打开'),
+                        child: const Text('���´�'),
                       ),
                   ],
                 ),
