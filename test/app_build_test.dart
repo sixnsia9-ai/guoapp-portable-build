@@ -22,8 +22,7 @@ void main() {
     });
     final store = testStore(await SharedPreferences.getInstance());
     expect(appSlug, allSourcesEnabled ? 'zhenguojian' : 'hongguojian');
-    // Ĭ��ֻ��ʾ�������СȦ����մ�Ԫ������վԴ��Ҫ���������
-    expect(store.sources.length, allSourcesEnabled ? 3 : 1);
+    expect(store.sources.length, allSourcesEnabled ? 10 : 1);
     expect(
       SourceSite.values.any((source) => source.id == 'dsd'),
       allSourcesEnabled,
@@ -33,13 +32,9 @@ void main() {
     expect(SourceSite.isKnown('guipian'), isTrue);
     expect(SourceSite.isAvailable('guipian'), isFalse);
     expect(store.allowsSource('guipian'), isFalse);
-    expect(SourceSite.byId('dsd').name, '�۹�');
-    expect(store.allowsSource('dsd'), isFalse);
-    expect(store.source, 'hongguo');
-    await store.enableSourceGate('666666');
-    expect(store.sourcesUnlocked, isTrue);
-    expect(store.sources.length, allSourcesEnabled ? 10 : 1);
+    expect(SourceSite.byId('dsd').name, '帝果');
     expect(store.allowsSource('dsd'), allSourcesEnabled);
+    expect(store.source, allSourcesEnabled ? 'huangdou' : 'hongguo');
     store.dispose();
   });
 
@@ -62,8 +57,6 @@ void main() {
         'history': jsonEncode(history),
       });
       final store = testStore(await SharedPreferences.getInstance());
-      // ����ԱĬ�Ͽɼ�ȫ��վԴ����������ʽ��������������֤���ú���Ϊһ�¡�
-      await store.enableSourceGate('666666');
       expect(store.favorites.length, allSourcesEnabled ? 2 : 1);
       expect(store.history.length, allSourcesEnabled ? 2 : 1);
       expect(store.isFavorite(other.id), allSourcesEnabled);
@@ -77,7 +70,6 @@ void main() {
       ]);
       expect(library['history'], hasLength(2));
       await store.importBackup(backup);
-      await store.enableSourceGate('666666');
       expect(store.preferences.getString('source'), 'huangdou');
       expect(store.history, hasLength(allSourcesEnabled ? 2 : 1));
       expect(
@@ -92,18 +84,18 @@ void main() {
     'a restored foreign-source profile keeps its identity and permissions',
     () async {
       SharedPreferences.setMockInitialValues({
-        ...await gatePreferences(),
+        ...legacyGatePreferences,
         'profiles': jsonEncode([
           LocalProfile(
             id: 'default',
-            name: '����Ա',
+            name: '管理员',
             admin: true,
             salt: '0' * 32,
             pinHash: '1' * 64,
           ).toJson(),
           const LocalProfile(
             id: 'viewer',
-            name: '�����û�',
+            name: '已有用户',
             sources: ['huangdou'],
             download: false,
           ).toJson(),
@@ -112,7 +104,6 @@ void main() {
         'profile.viewer.source': 'huangdou',
       });
       final store = testStore(await SharedPreferences.getInstance());
-      await unlockGate(store);
       expect(store.profile.id, 'viewer');
       expect(store.profile.admin, isFalse);
       expect(store.profile.sources, ['huangdou']);
@@ -126,18 +117,18 @@ void main() {
 
   test('restored DSD profile data follows edition availability', () async {
     SharedPreferences.setMockInitialValues({
-      ...await gatePreferences(),
+      ...legacyGatePreferences,
       'profiles': jsonEncode([
         LocalProfile(
           id: 'default',
-          name: '����Ա',
+          name: '管理员',
           admin: true,
           salt: '0' * 32,
           pinHash: '1' * 64,
         ).toJson(),
         const LocalProfile(
           id: 'viewer',
-          name: '�۹����û�',
+          name: '帝果旧用户',
           sources: ['dsd'],
           download: false,
         ).toJson(),
@@ -146,7 +137,6 @@ void main() {
       'profile.viewer.source': 'dsd',
     });
     final store = testStore(await SharedPreferences.getInstance());
-    await unlockGate(store);
     expect(store.configurationError, isNull);
     expect(store.profile.sources, ['dsd']);
     expect(
@@ -163,14 +153,14 @@ void main() {
       'profiles': jsonEncode([
         LocalProfile(
           id: 'default',
-          name: '����Ա',
+          name: '管理员',
           admin: true,
           salt: '0' * 32,
           pinHash: '1' * 64,
         ).toJson(),
         const LocalProfile(
           id: 'viewer',
-          name: '���û�',
+          name: '旧用户',
           sources: ['guipian'],
         ).toJson(),
       ]),
@@ -197,7 +187,7 @@ void main() {
         'guipian',
       ];
       for (final source in denied) {
-        final drama = Drama(id: '$source:123', source: source, title: '�ϳ�����');
+        final drama = Drama(id: '$source:123', source: source, title: '合成数据');
         final episode = Episode({'id': '1'}, 1);
         for (final request in [
           () => repository.catalog(source),
@@ -220,7 +210,7 @@ void main() {
               isA<AppFailure>().having(
                 (error) => error.message,
                 'message',
-                '��ǰ�汾��������վԴ',
+                '当前版本不包含此站源',
               ),
             ),
           );
