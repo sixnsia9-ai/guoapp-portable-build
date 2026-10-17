@@ -268,6 +268,11 @@ class _PlayerScreenState extends State<PlayerScreen>
       _player.stream.position.listen((position) {
         if (!_closed && _openedIndex == _index && position > Duration.zero) {
           _resumePosition = position.inMilliseconds / 1000;
+          if (widget.detail.drama.source == SourceSite.dsd.id &&
+              _player.state.playing &&
+              !_player.state.buffering) {
+            _recovery.progressed(position, DateTime.now());
+          }
         }
         _syncDanmaku();
         _syncPreload();
@@ -1077,6 +1082,13 @@ class _PlayerScreenState extends State<PlayerScreen>
         }
         if (_closed || ticket != _generation) return;
         _openedIndex = index;
+        if (recoveryAction != null &&
+            widget.detail.drama.source == SourceSite.dsd.id) {
+          _recovery.resumed(
+            Duration(milliseconds: (position * 1000).round()),
+            DateTime.now(),
+          );
+        }
         _enhancement.mediaReady();
         _attachLanPlayback();
         _health.reset();
