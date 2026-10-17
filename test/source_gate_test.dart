@@ -3,6 +3,7 @@ import 'package:duanju_app/local_store.dart';
 import 'package:duanju_app/source_gate_dialog.dart';
 import 'package:duanju_app/source_gate_taps.dart';
 import 'package:duanju_app/portable_storage.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -11,12 +12,21 @@ import 'fixtures.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  // 输入框光标闪烁会让动画不收敛，固定光标保证 pump 步进可预期。
+  // ���������˸���ö������������̶���걣֤ pump ������Ԥ�ڡ�
   EditableText.debugDeterministicCursor = true;
-
-  Future<LocalStore> create([Map<String, Object> initial = const {}]) async {
+  Future<LocalStore> create([
+    Map<String, Object> initial = const {},
+    TargetPlatform platform = TargetPlatform.android,
+  ]) async {
     SharedPreferences.setMockInitialValues(Map.of(initial));
-    final store = testStore(await SharedPreferences.getInstance());
+    final preferences = await SharedPreferences.getInstance();
+    debugDefaultTargetPlatformOverride = platform;
+    late final LocalStore store;
+    try {
+      store = testStore(preferences);
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
     addTearDown(store.dispose);
     return store;
   }
@@ -31,7 +41,7 @@ void main() {
     );
     expect(store.allowsSource('huangdou'), isFalse);
     expect(store.allowsSource('hongguo'), isTrue);
-    // 未启用密码锁时无处输入密码，需要先在弹窗里启用。
+    // δ����������ʱ�޴��������룬��Ҫ���ڵ��������á�
     await expectLater(store.unlockSources('666'), throwsStateError);
     expect(store.sourcesUnlocked, isFalse);
   });
@@ -42,6 +52,18 @@ void main() {
     final store = await create();
     expect(store.sourceGateOff, isTrue);
     expect(store.sources.length, allSourcesEnabled ? 10 : 1);
+  });
+
+  test('fresh Windows all-source build shows every compiled source', () async {
+    final store = await create(const {}, TargetPlatform.windows);
+    expect(store.sources.length, allSourcesEnabled ? 10 : 1);
+    expect(store.allowsSource('guipian'), isFalse);
+  });
+
+  test('existing Windows source password still hides restricted sources', () async {
+    final store = await create(await gatePreferences(), TargetPlatform.windows);
+    expect(store.sourceGateEnabled, isTrue);
+    expect(store.sources.length, allSourcesEnabled ? 3 : 1);
   });
 
   test('enabling the gate hides restricted sources and unlocks once', () async {
@@ -110,7 +132,7 @@ void main() {
     for (var i = 0; i < 5; i++) {
       expect(gate.register(2), isFalse);
     }
-    // 切换入口会清零计数，避免误触发。
+    // �л���ڻ���������������󴥷���
     expect(gate.register(0), isFalse);
     for (var i = 0; i < 5; i++) {
       expect(gate.register(2), isFalse);
@@ -140,8 +162,8 @@ void main() {
     expect(store.sources.length, allSourcesEnabled ? 10 : 1);
   });
 
-  // 密码锁弹窗含动画与异步回调，用固定步进代替 pumpAndSettle，
-  // 避免不收敛的动画让测试挂到 10 分钟默认超时。
+  // �������������������첽�ص����ù̶��������� pumpAndSettle��
+  // ���ⲻ�����Ķ����ò��Թҵ� 10 ����Ĭ�ϳ�ʱ��
   Future<void> settle(WidgetTester tester) async {
     for (var i = 0; i < 6; i++) {
       await tester.pump(const Duration(milliseconds: 80));
@@ -158,49 +180,49 @@ void main() {
           body: Builder(
             builder: (context) => TextButton(
               onPressed: () => showSourceGateDialog(context, store),
-              child: const Text('打开'),
+              child: const Text('��'),
             ),
           ),
         ),
       ),
     );
 
-    // 未启用时给用户「启用密码锁」的选择。
-    await tester.tap(find.text('打开'));
+    // δ����ʱ���û�����������������ѡ��
+    await tester.tap(find.text('��'));
     await settle(tester);
-    expect(find.text('站源密码锁'), findsOneWidget);
-    expect(find.text('启用密码锁'), findsOneWidget);
-    expect(find.text('解锁'), findsNothing);
+    expect(find.text('վԴ������'), findsOneWidget);
+    expect(find.text('����������'), findsOneWidget);
+    expect(find.text('����'), findsNothing);
 
     await tester.enterText(find.byType(TextField).first, '666');
     await tester.enterText(find.byType(TextField).last, '666');
-    await tester.tap(find.text('启用密码锁'));
+    await tester.tap(find.text('����������'));
     await settle(tester);
     expect(store.sourceGateEnabled, isTrue);
     expect(store.sourcesUnlocked, isTrue);
 
-    // 已启用且已解锁时提供「重新锁定」与「关闭密码功能」。
-    await tester.tap(find.text('打开'));
+    // ���������ѽ���ʱ�ṩ�������������롸�ر����빦�ܡ���
+    await tester.tap(find.text('��'));
     await settle(tester);
-    expect(find.text('重新锁定'), findsOneWidget);
-    expect(find.text('关闭密码功能'), findsOneWidget);
-    await tester.tap(find.text('重新锁定'));
+    expect(find.text('��������'), findsOneWidget);
+    expect(find.text('�ر����빦��'), findsOneWidget);
+    await tester.tap(find.text('��������'));
     await settle(tester);
     expect(store.sourcesUnlocked, isFalse);
 
-    // 锁定后要求输入密码才能解锁。
-    await tester.tap(find.text('打开'));
+    // ������Ҫ������������ܽ�����
+    await tester.tap(find.text('��'));
     await settle(tester);
-    expect(find.text('解锁'), findsOneWidget);
+    expect(find.text('����'), findsOneWidget);
     await tester.enterText(find.byType(TextField).first, '666');
-    await tester.tap(find.text('解锁'));
+    await tester.tap(find.text('����'));
     await settle(tester);
     expect(store.sourcesUnlocked, isTrue);
 
-    // 仍可关闭密码功能，恢复全部站源可见。
-    await tester.tap(find.text('打开'));
+    // �Կɹر����빦�ܣ��ָ�ȫ��վԴ�ɼ���
+    await tester.tap(find.text('��'));
     await settle(tester);
-    await tester.tap(find.text('关闭密码功能'));
+    await tester.tap(find.text('�ر����빦��'));
     await settle(tester);
     expect(store.sourceGateEnabled, isFalse);
     expect(store.sourcesUnlocked, isTrue);
