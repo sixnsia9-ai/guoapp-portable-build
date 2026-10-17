@@ -6,10 +6,31 @@ class PlaybackRecovery {
   static const maxAttempts = 3;
   int _attempts = 0;
   bool _refreshed = false;
+  Duration? _resumedPosition;
+  DateTime? _resumedAt;
 
   void reset() {
     _attempts = 0;
     _refreshed = false;
+    _resumedPosition = null;
+    _resumedAt = null;
+  }
+
+  void resumed(Duration position, DateTime now) {
+    if (_attempts == 0) return;
+    _resumedPosition = position;
+    _resumedAt = now;
+  }
+
+  void progressed(Duration position, DateTime now) {
+    final resumedPosition = _resumedPosition;
+    final resumedAt = _resumedAt;
+    if (resumedPosition != null &&
+        resumedAt != null &&
+        position >= resumedPosition + const Duration(seconds: 15) &&
+        now.difference(resumedAt) >= const Duration(seconds: 15)) {
+      reset();
+    }
   }
 
   PlaybackRecoveryAction next(PlaybackPlan plan) {
