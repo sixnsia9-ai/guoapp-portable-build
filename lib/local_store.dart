@@ -252,6 +252,8 @@ class LocalStore extends ChangeNotifier {
   }
 
   bool get autoExport => !locked && (_bool('autoExport') ?? false);
+  bool get autoUpdateSources =>
+      !locked && (_bool('autoUpdateSources') ?? false);
   bool get exportPosters => !locked && (_bool('exportPosters') ?? false);
   String get source {
     if (locked) return '';
@@ -408,6 +410,8 @@ class LocalStore extends ChangeNotifier {
       _setting('exportPosters', value, admin: true);
   Future<void> setAutoExport(bool value) =>
       _setting('autoExport', value, admin: true);
+  Future<void> setAutoUpdateSources(bool value) =>
+      _setting('autoUpdateSources', value, admin: true);
   Future<void> setForceLogin(bool value) =>
       _setting('forceLogin', value, admin: true);
   Future<void> setHideVip(bool value) => _setting(_key('hideVip'), value);
@@ -871,6 +875,7 @@ class LocalStore extends ChangeNotifier {
       'displayMode': displayMode,
       'themeMode': themeMode,
       'autoExport': autoExport,
+      'autoUpdateSources': autoUpdateSources,
       'exportPosters': exportPosters,
       'forceLogin': forceLogin,
       'libraries': {
@@ -927,6 +932,10 @@ class LocalStore extends ChangeNotifier {
     }
     if (data.containsKey('forceLogin') && data['forceLogin'] is! bool) {
       throw const FormatException('备份登录设置无效');
+    }
+    if (data.containsKey('autoUpdateSources') &&
+        data['autoUpdateSources'] is! bool) {
+      throw const FormatException('备份站源自动更新设置无效');
     }
     final libraries = data['libraries'] as Map;
     for (final profile in profiles) {
@@ -998,6 +1007,7 @@ class LocalStore extends ChangeNotifier {
           : 'auto',
       'themeMode': data['themeMode'] as String? ?? themeMode,
       'autoExport': data['autoExport'] == true,
+      'autoUpdateSources': data['autoUpdateSources'] == true,
       'exportPosters': data['exportPosters'] == true,
       'forceLogin': data['forceLogin'] is bool
           ? data['forceLogin'] as bool
