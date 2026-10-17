@@ -91,8 +91,6 @@ void main() {
     (tester) async {
       SharedPreferences.setMockInitialValues({});
       final store = testStore(await SharedPreferences.getInstance());
-      // 管理员默认可见全部站源；显式启用密码锁以覆盖解锁后的站源范围。
-      await store.enableSourceGate('666666');
       final repository = SourceFixtureRepository()
         ..pending = Completer<SourceStatus>();
       await tester.pumpWidget(
@@ -151,7 +149,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(repository.statusRequests, ['hongguo']);
       expect(find.byKey(const ValueKey('source-hongguo')), findsOneWidget);
-      for (final source in SourceSite.knownValues.skip(1)) {
+      for (final source in SourceSite.allValues.skip(1)) {
         expect(find.byKey(ValueKey('source-${source.id}')), findsNothing);
       }
       await tester.pumpWidget(const SizedBox.shrink());
