@@ -15,10 +15,14 @@ void main() {
   const other = FixtureRepository.vip;
 
   test('edition sources include DSD only in the all-source build', () async {
-    SharedPreferences.setMockInitialValues({'source': 'huangdou'});
+    SharedPreferences.setMockInitialValues({
+      'source': 'huangdou',
+      'sourceGateEnabled': false,
+      'sourceGateOff': false,
+    });
     final store = testStore(await SharedPreferences.getInstance());
     expect(appSlug, allSourcesEnabled ? 'zhenguojian' : 'hongguojian');
-    // 默认只显示红果、韩小圈与青空次元，其余站源需要密码解锁。
+    // Ĭ��ֻ��ʾ�������СȦ����մ�Ԫ������վԴ��Ҫ���������
     expect(store.sources.length, allSourcesEnabled ? 3 : 1);
     expect(
       SourceSite.values.any((source) => source.id == 'dsd'),
@@ -29,7 +33,7 @@ void main() {
     expect(SourceSite.isKnown('guipian'), isTrue);
     expect(SourceSite.isAvailable('guipian'), isFalse);
     expect(store.allowsSource('guipian'), isFalse);
-    expect(SourceSite.byId('dsd').name, '帝果');
+    expect(SourceSite.byId('dsd').name, '�۹�');
     expect(store.allowsSource('dsd'), isFalse);
     expect(store.source, 'hongguo');
     await store.enableSourceGate('666666');
@@ -58,7 +62,7 @@ void main() {
         'history': jsonEncode(history),
       });
       final store = testStore(await SharedPreferences.getInstance());
-      // 管理员默认可见全部站源；这里仍显式启用密码锁，验证启用后行为一致。
+      // ����ԱĬ�Ͽɼ�ȫ��վԴ����������ʽ��������������֤���ú���Ϊһ�¡�
       await store.enableSourceGate('666666');
       expect(store.favorites.length, allSourcesEnabled ? 2 : 1);
       expect(store.history.length, allSourcesEnabled ? 2 : 1);
@@ -92,14 +96,14 @@ void main() {
         'profiles': jsonEncode([
           LocalProfile(
             id: 'default',
-            name: '管理员',
+            name: '����Ա',
             admin: true,
             salt: '0' * 32,
             pinHash: '1' * 64,
           ).toJson(),
           const LocalProfile(
             id: 'viewer',
-            name: '已有用户',
+            name: '�����û�',
             sources: ['huangdou'],
             download: false,
           ).toJson(),
@@ -126,14 +130,14 @@ void main() {
       'profiles': jsonEncode([
         LocalProfile(
           id: 'default',
-          name: '管理员',
+          name: '����Ա',
           admin: true,
           salt: '0' * 32,
           pinHash: '1' * 64,
         ).toJson(),
         const LocalProfile(
           id: 'viewer',
-          name: '帝果旧用户',
+          name: '�۹����û�',
           sources: ['dsd'],
           download: false,
         ).toJson(),
@@ -159,14 +163,14 @@ void main() {
       'profiles': jsonEncode([
         LocalProfile(
           id: 'default',
-          name: '管理员',
+          name: '����Ա',
           admin: true,
           salt: '0' * 32,
           pinHash: '1' * 64,
         ).toJson(),
         const LocalProfile(
           id: 'viewer',
-          name: '旧用户',
+          name: '���û�',
           sources: ['guipian'],
         ).toJson(),
       ]),
@@ -193,7 +197,7 @@ void main() {
         'guipian',
       ];
       for (final source in denied) {
-        final drama = Drama(id: '$source:123', source: source, title: '合成数据');
+        final drama = Drama(id: '$source:123', source: source, title: '�ϳ�����');
         final episode = Episode({'id': '1'}, 1);
         for (final request in [
           () => repository.catalog(source),
@@ -216,7 +220,7 @@ void main() {
               isA<AppFailure>().having(
                 (error) => error.message,
                 'message',
-                '当前版本不包含此站源',
+                '��ǰ�汾��������վԴ',
               ),
             ),
           );
