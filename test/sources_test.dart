@@ -82,6 +82,14 @@ void main() {
     await tester.pumpAndSettle();
     final list = tester.widget<ListView>(find.byType(ListView));
     expect((list.padding! as EdgeInsets).bottom, 50);
+    expect(store.autoUpdateSources, isFalse);
+    await tester.tap(find.byKey(const ValueKey('auto-update-sources')));
+    await tester.pumpAndSettle();
+    expect(store.autoUpdateSources, isTrue);
+    final restored = testStore(await SharedPreferences.getInstance());
+    expect(restored.autoUpdateSources, isTrue);
+    expect(jsonDecode(await store.exportBackup())['autoUpdateSources'], isTrue);
+    restored.dispose();
     await tester.pumpWidget(const SizedBox.shrink());
     store.dispose();
   });
@@ -129,7 +137,14 @@ void main() {
     (tester) async {
       SharedPreferences.setMockInitialValues({
         'profiles': jsonEncode([
-          const LocalProfile(id: 'default', name: '管理员', admin: true).toJson(),
+          const LocalProfile(
+            id: 'default',
+            name: '管理员',
+            admin: true,
+            salt: '0123456789abcdef0123456789abcdef',
+            pinHash:
+                '0000000000000000000000000000000000000000000000000000000000000000',
+          ).toJson(),
           const LocalProfile(
             id: 'viewer',
             name: '只看红果',
@@ -309,7 +324,8 @@ void main() {
       expect(find.textContaining('检测未通过'), findsOneWidget);
       expect(find.textContaining('HTTP 403'), findsNothing);
       final toggle = find.byKey(const ValueKey('health-toggle-hongguo'));
-      await tester.ensureVisible(toggle);
+      await tester.drag(find.byType(ListView), const Offset(0, -250));
+      await tester.pumpAndSettle();
       await tester.tap(toggle);
       await tester.pumpAndSettle();
       expect(find.textContaining('HTTP 403'), findsOneWidget);
