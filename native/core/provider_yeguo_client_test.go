@@ -6,9 +6,23 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
+
+	"golang.org/x/net/html"
 )
+
+func TestYeguoAPIBaseFallsBackWhenPageOmitsRuntimeConfiguration(t *testing.T) {
+	document, err := html.Parse(strings.NewReader(`<html><script id="__NUXT_DATA__">[]</script></html>`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	base, err := yeguoAPIBase(document, "")
+	if err != nil || base != "https://www.yeguodj.com/api.php" {
+		t.Fatalf("current public API base not used: %q, %v", base, err)
+	}
+}
 
 func TestYeguoAPIClientUsesRouteMethods(t *testing.T) {
 	var sawCategories, sawCatalog, sawSearch, sawPlay bool
