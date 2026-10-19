@@ -82,6 +82,14 @@ void main() {
     await tester.pumpAndSettle();
     final list = tester.widget<ListView>(find.byType(ListView));
     expect((list.padding! as EdgeInsets).bottom, 50);
+    expect(store.autoUpdateSources, isFalse);
+    await tester.tap(find.byKey(const ValueKey('auto-update-sources')));
+    await tester.pumpAndSettle();
+    expect(store.autoUpdateSources, isTrue);
+    final restored = testStore(await SharedPreferences.getInstance());
+    expect(restored.autoUpdateSources, isTrue);
+    expect(jsonDecode(await store.exportBackup())['autoUpdateSources'], isTrue);
+    restored.dispose();
     await tester.pumpWidget(const SizedBox.shrink());
     store.dispose();
   });
@@ -91,8 +99,6 @@ void main() {
     (tester) async {
       SharedPreferences.setMockInitialValues({});
       final store = testStore(await SharedPreferences.getInstance());
-      // 管理员默认可见全部站源；显式启用密码锁以覆盖解锁后的站源范围。
-      await store.enableSourceGate('666666');
       final repository = SourceFixtureRepository()
         ..pending = Completer<SourceStatus>();
       await tester.pumpWidget(
@@ -131,7 +137,14 @@ void main() {
     (tester) async {
       SharedPreferences.setMockInitialValues({
         'profiles': jsonEncode([
-          const LocalProfile(id: 'default', name: '管理员', admin: true).toJson(),
+          const LocalProfile(
+            id: 'default',
+            name: '管理员',
+            admin: true,
+            salt: '0123456789abcdef0123456789abcdef',
+            pinHash:
+                '0000000000000000000000000000000000000000000000000000000000000000',
+          ).toJson(),
           const LocalProfile(
             id: 'viewer',
             name: '只看红果',
@@ -151,7 +164,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(repository.statusRequests, ['hongguo']);
       expect(find.byKey(const ValueKey('source-hongguo')), findsOneWidget);
-      for (final source in SourceSite.knownValues.skip(1)) {
+      for (final source in SourceSite.allValues.skip(1)) {
         expect(find.byKey(ValueKey('source-${source.id}')), findsNothing);
       }
       await tester.pumpWidget(const SizedBox.shrink());
@@ -311,7 +324,8 @@ void main() {
       expect(find.textContaining('检测未通过'), findsOneWidget);
       expect(find.textContaining('HTTP 403'), findsNothing);
       final toggle = find.byKey(const ValueKey('health-toggle-hongguo'));
-      await tester.ensureVisible(toggle);
+      await tester.drag(find.byType(ListView), const Offset(0, -250));
+      await tester.pumpAndSettle();
       await tester.tap(toggle);
       await tester.pumpAndSettle();
       expect(find.textContaining('HTTP 403'), findsOneWidget);

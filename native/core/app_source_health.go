@@ -37,6 +37,8 @@ type sourceResponseTrace struct {
 
 type sourceTraceKey struct{}
 
+type sourceHealthProbeKey struct{}
+
 func observeSourceResponse(ctx context.Context, response *http.Response) {
 	trace, _ := ctx.Value(sourceTraceKey{}).(*sourceResponseTrace)
 	if trace == nil || response == nil {
@@ -55,6 +57,7 @@ func (engine *nativeEngine) checkSource(ctx context.Context, source string, sele
 	report := nativeSourceHealth{CheckedAt: time.Now(), State: "checking", Steps: []nativeHealthStep{}}
 	trace := &sourceResponseTrace{}
 	ctx = context.WithValue(ctx, sourceTraceKey{}, trace)
+	ctx = context.WithValue(ctx, sourceHealthProbeKey{}, true)
 	publish := func() {
 		copy := report
 		copy.Steps = append([]nativeHealthStep{}, report.Steps...)

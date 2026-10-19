@@ -53,6 +53,14 @@ func reopenCatalogEngine(t *testing.T, directory string, transport sourceFixture
 	engine.downloader.client.Transport = transport
 	engine.downloader.limiter = newRequestLimiter(3, 0)
 	engine.downloader.cfg.Retries = 1
+	engine.downloader.cfg.MaxPagesPerSort = 1
+	return engine
+}
+
+func persistedCatalogFixtureEngine(t *testing.T, transport sourceFixtureTransport) *nativeEngine {
+	t.Helper()
+	engine := sourceFixtureEngine(t, transport)
+	engine.downloader.cfg.MaxPagesPerSort = 1
 	return engine
 }
 
@@ -75,7 +83,7 @@ func TestNativeHongguoCursorRestartsPerCatalog(t *testing.T) {
 		return nativeHongguoResponse(request, payload.Offset+18, true, "fixture-"+payload.Scene,
 			strconv.Itoa(base+position+1), strconv.Itoa(base+position+2)), nil
 	})
-	engine := sourceFixtureEngine(t, transport)
+	engine := persistedCatalogFixtureEngine(t, transport)
 	for _, input := range []nativeInput{
 		{Source: sourceHongguo, Page: 1},
 		{Source: sourceHongguo, Category: "short_play", Page: 1},
@@ -153,7 +161,7 @@ func TestNativeHongguoCursorRecoversSessionsAfterRestart(t *testing.T) {
 				}
 				return nativeHongguoResponse(request, 36, true, "new-session", "700002", "700003"), nil
 			})
-			engine := sourceFixtureEngine(t, transport)
+			engine := persistedCatalogFixtureEngine(t, transport)
 			input := nativeInput{Source: sourceHongguo, Category: "ai_series", Page: 1}
 			if result, err := engine.nativeCatalog(context.Background(), input); err != nil || result.Warning != "" {
 				t.Fatal(err, result.Warning)
@@ -200,7 +208,7 @@ func TestNativeHongguoStalledCursorKeepsPartialItems(t *testing.T) {
 		}
 		return nativeHongguoResponse(request, 18, true, "fixture", "700002"), nil
 	})
-	engine := sourceFixtureEngine(t, transport)
+	engine := persistedCatalogFixtureEngine(t, transport)
 	input := nativeInput{Source: sourceHongguo, Category: "ai_series", Page: 1}
 	if _, err := engine.nativeCatalog(context.Background(), input); err != nil {
 		t.Fatal(err)
@@ -220,7 +228,7 @@ func TestNativeHongguoStalledCursorKeepsPartialItems(t *testing.T) {
 
 func TestNativeCatalogPreservesLargeLibraryAndPage501(t *testing.T) {
 	var requested string
-	engine := sourceFixtureEngine(t, func(request *http.Request) (*http.Response, error) {
+	engine := persistedCatalogFixtureEngine(t, func(request *http.Request) (*http.Response, error) {
 		if request.URL.Path != "/api/videos/category/ai-duanju" {
 			return nil, errors.New("only synthetic catalog metadata is allowed")
 		}
@@ -263,7 +271,7 @@ func TestNativeCatalogSaveFailureRetriesWithoutAdvancing(t *testing.T) {
 		return nativeHongguoResponse(request, payload.Offset+18, true, "fixture",
 			strconv.Itoa(1001+position), strconv.Itoa(1002+position)), nil
 	})
-	engine := sourceFixtureEngine(t, transport)
+	engine := persistedCatalogFixtureEngine(t, transport)
 	input := nativeInput{Source: sourceHongguo, Category: "short_play", Page: 1}
 	if _, err := engine.nativeCatalog(context.Background(), input); err != nil {
 		t.Fatal(err)
@@ -320,7 +328,7 @@ func TestNativeCatalogSaveFailureRetriesWithoutAdvancing(t *testing.T) {
 
 func TestNativeCatalogSizeLimitPreservesPreviousFile(t *testing.T) {
 	var requests atomic.Int32
-	engine := sourceFixtureEngine(t, func(request *http.Request) (*http.Response, error) {
+	engine := persistedCatalogFixtureEngine(t, func(request *http.Request) (*http.Response, error) {
 		requests.Add(1)
 		return nil, errors.New("network forbidden")
 	})
@@ -362,7 +370,7 @@ func TestNativeCatalogMetadataSaveExcludesInFlightCursor(t *testing.T) {
 		base := map[string]int{"default": 1000, "comic_series": 2000, "ai_series": 3000}[payload.Scene]
 		return nativeHongguoResponse(request, payload.Offset+18, true, "fixture", strconv.Itoa(base+payload.Offset)), nil
 	})
-	engine := sourceFixtureEngine(t, transport)
+	engine := persistedCatalogFixtureEngine(t, transport)
 	if _, err := engine.nativeCatalog(context.Background(), nativeInput{Source: sourceHongguo, Page: 1}); err != nil {
 		t.Fatal(err)
 	}
@@ -401,7 +409,7 @@ func TestNativeCatalogMetadataSaveExcludesInFlightCursor(t *testing.T) {
 
 func TestNativeSourceRecordSaveFailureAndRetryDuringBackoff(t *testing.T) {
 	var requests atomic.Int32
-	engine := sourceFixtureEngine(t, func(request *http.Request) (*http.Response, error) {
+	engine := persistedCatalogFixtureEngine(t, func(request *http.Request) (*http.Response, error) {
 		requests.Add(1)
 		return nil, errors.New("network forbidden")
 	})

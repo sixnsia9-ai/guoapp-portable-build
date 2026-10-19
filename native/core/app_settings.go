@@ -66,6 +66,17 @@ type proxyRouter struct {
 	systemOverride bool
 }
 
+type sourceDirectRetryKey struct{}
+
+func (router *proxyRouter) automatic() bool {
+	if router == nil {
+		return false
+	}
+	router.mu.RLock()
+	defer router.mu.RUnlock()
+	return router.mode == "" || router.mode == "auto"
+}
+
 func (router *proxyRouter) proxy(request *http.Request) (*url.URL, error) {
 	if request.URL.Hostname() == "127.0.0.1" || request.URL.Hostname() == "localhost" || request.URL.Hostname() == "::1" {
 		return nil, nil
@@ -78,6 +89,9 @@ func (router *proxyRouter) proxy(request *http.Request) (*url.URL, error) {
 		return nil, nil
 	case "manual":
 		return manual, nil
+	}
+	if direct, _ := request.Context().Value(sourceDirectRetryKey{}).(bool); direct {
+		return nil, nil
 	}
 	return router.systemSettings().resolve(request)
 }

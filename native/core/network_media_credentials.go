@@ -10,16 +10,20 @@ import (
 )
 
 type providerMediaCredentials struct {
-	cookie    string
-	origin    string
-	referer   string
-	userAgent string
-	expires   time.Time
+	cookie          string
+	origin          string
+	referer         string
+	userAgent       string
+	directAutoProxy bool
+	expires         time.Time
 }
 
 type providerMediaCredentialsKey struct{}
 
 func providerMediaContext(ctx context.Context, credentials *providerMediaCredentials) context.Context {
+	if credentials != nil && credentials.directAutoProxy {
+		ctx = context.WithValue(ctx, sourceDirectRetryKey{}, true)
+	}
 	return context.WithValue(ctx, providerMediaCredentialsKey{}, credentials)
 }
 

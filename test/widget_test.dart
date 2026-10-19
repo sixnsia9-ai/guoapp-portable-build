@@ -30,12 +30,10 @@ void main() {
         await tester.pumpAndSettle();
         await tester.tap(find.byKey(const ValueKey('source-dropdown')));
         await tester.pumpAndSettle();
-        expect(find.text('黄豆'), findsNothing);
+        expect(find.text('黄豆'), findsOneWidget);
         await tester.tap(find.text('韩小圈'));
         await tester.pumpAndSettle();
         expect(local.source, 'hanxiaoquan');
-        await local.disableSourceGate();
-        await tester.pumpAndSettle();
         await tester.tap(find.byKey(const ValueKey('source-dropdown')));
         await tester.pumpAndSettle();
         expect(find.text('黄豆'), findsOneWidget);

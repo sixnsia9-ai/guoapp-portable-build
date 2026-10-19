@@ -6,8 +6,6 @@ import 'package:path_provider_windows/path_provider_windows.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_platform_interface.dart';
 import 'package:shared_preferences_windows/shared_preferences_windows.dart';
 
-bool portableStorageEnabled = false;
-
 class _PortablePaths extends PathProviderWindows {
   _PortablePaths(this.root);
 
@@ -36,5 +34,4 @@ Future<void> configurePortableStorage() async {
   // shortcut: shared_preferences_windows exposes this hook for tests; replace when it offers a public path API.
   // ignore: invalid_use_of_visible_for_testing_member
   preferences.pathProvider = provider;
-  portableStorageEnabled = true;
 }

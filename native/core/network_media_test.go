@@ -147,6 +147,53 @@ func TestHuangguoPreviewTokenRefreshIsBoundedAndScoped(t *testing.T) {
 	}
 }
 
+func TestDSDExpiredSegmentDoesNotBlockPlaybackRefresh(t *testing.T) {
+	const site = "https://www.dsd.com.se"
+	var pageRequests atomic.Int32
+	d := sourceFixtureDownloader(t, func(request *http.Request) (*http.Response, error) {
+		switch request.URL.Path {
+		case "/video/a/segment.ts":
+			return sourceFixtureResponse(request, http.StatusForbidden, "expired signed media"), nil
+		case "/index.php/vod/play/id/1/sid/1/nid/1.html":
+			pageRequests.Add(1)
+			return sourceFixtureResponse(request, http.StatusOK, "<html>fresh playback page</html>"), nil
+		default:
+			return nil, errors.New("unexpected resource")
+		}
+	})
+	stream, err := newNativeStreamServer(d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stream.server.Close()
+	playlistURL, token := stream.nativeOpen(providerMedia{
+		URL: site + "/video/a/index.m3u8?sign=old", Referer: site + "/addons/vplayer/",
+		Playlist: "#EXTM3U\n#EXTINF:4,\nsegment.ts?sign=old\n",
+	})
+	defer stream.nativeRelease(token)
+	playlist, err := http.Get(playlistURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := io.ReadAll(playlist.Body)
+	playlist.Body.Close()
+	if err != nil || playlist.StatusCode != http.StatusOK {
+		t.Fatal("playlist unavailable", err, playlist.StatusCode)
+	}
+	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+	segment, err := http.Get(lines[len(lines)-1])
+	if err != nil {
+		t.Fatal(err)
+	}
+	segment.Body.Close()
+	if segment.StatusCode != http.StatusForbidden {
+		t.Fatal("fixture did not reproduce the playback 403", segment.StatusCode)
+	}
+	if _, err := d.fetchProviderText(context.Background(), site+"/index.php/vod/play/id/1/sid/1/nid/1.html", site+"/"); err != nil || pageRequests.Load() != 1 {
+		t.Fatal("expired segment blocked fresh playback resolution", err, pageRequests.Load())
+	}
+}
+
 func TestLegacyPlaybackAndDownloadUseAuthenticatedPlaylistAndSourceKey(t *testing.T) {
 	var keys atomic.Int32
 	d := sourceFixtureDownloader(t, func(request *http.Request) (*http.Response, error) {

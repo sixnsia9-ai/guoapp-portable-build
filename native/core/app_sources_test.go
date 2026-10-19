@@ -188,6 +188,22 @@ func TestSourceHealthRejectsHTML200AndPreservesFailureStage(t *testing.T) {
 	}
 }
 
+func TestHongguoHealthChecksOnlyFirstCatalogRound(t *testing.T) {
+	var calls atomic.Int32
+	engine := sourceFixtureEngine(t, func(request *http.Request) (*http.Response, error) {
+		payload := nativeHongguoRequestForTest(t, request)
+		calls.Add(1)
+		return nativeHongguoResponse(request, payload.Offset+18, true, "session", fmt.Sprint(calls.Load())), nil
+	})
+	engine.downloader.cfg.MaxPagesPerSort = 50
+	if err := engine.checkSource(context.Background(), sourceHongguo, nativeDrama{}, false); err != nil {
+		t.Fatal(err)
+	}
+	if got := calls.Load(); got != 3 {
+		t.Fatalf("health check made %d catalog requests; want one per genre", got)
+	}
+}
+
 func TestSourceHealthChecksHLSKeyAndBoundedMedia(t *testing.T) {
 	var segments atomic.Int32
 	engine := sourceFixtureEngine(t, func(request *http.Request) (*http.Response, error) {
