@@ -31,6 +31,7 @@ import (
 const (
 	yeguoBaseURL    = "https://analyze.buxefaex.cc"
 	yeguoTransitURL = "https://ygdj7.com"
+	yeguoAPIURL     = "https://www.yeguodj.com/api.php"
 )
 
 var (
@@ -329,6 +330,9 @@ func yeguoAPIBase(document *html.Node, configured string) (string, error) {
 				}
 			}
 		}
+	}
+	if base == "" {
+		base = yeguoAPIURL
 	}
 	address, err := url.Parse(base)
 	if err != nil || !isProviderHTTPMediaURL(base) || address.User != nil || address.RawQuery != "" || address.Fragment != "" {
