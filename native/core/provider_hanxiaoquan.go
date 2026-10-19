@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // 韩小圈（hanxiaoquan）原生站源：MacCMS 苹果 CMS 标准模板站点，韩剧/韩国电影/韩国综艺/韩国动漫。
@@ -121,6 +122,12 @@ func (d *Downloader) hanxiaoquanGet(ctx context.Context, path string) (string, e
 		address = site + path
 	}
 	pageContext := context.WithValue(ctx, providerTextUserAgentKey{}, hanxiaoquanUserAgent)
+	if d.proxyRouter.automatic() {
+		body, err := d.fetchProviderText(context.WithValue(pageContext, sourceDirectRetryKey{}, true), address, site+"/")
+		if err == nil {
+			return body, nil
+		}
+	}
 	return d.fetchProviderText(pageContext, address, site+"/")
 }
 
@@ -442,6 +449,52 @@ func (d *Downloader) resolveHanxiaoquanMedia(ctx context.Context, task Task) (pr
 	}
 	media := providerMedia{URL: address, Referer: hanxiaoquanSiteBaseURL + "/"}
 	if strings.HasSuffix(strings.ToLower(parsed.Path), ".m3u8") {
+		if d.proxyRouter.automatic() {
+			media.credentials = &providerMediaCredentials{directAutoProxy: true}
+		}
+		resolved, err := d.prepareWebProviderMedia(ctx, media, "韩小圈")
+		if err == nil {
+			return resolved, err
+		}
+		if d.proxyRouter.automatic() {
+			retryContext := context.WithValue(ctx, sourceDirectRetryKey{}, true)
+			if retryBody, pageErr := d.hanxiaoquanGet(retryContext, playURL); pageErr == nil {
+				if match := reHanxiaoquanNow.FindStringSubmatch(retryBody); len(match) > 1 {
+					media.URL = strings.TrimSpace(match[1])
+				} else {
+					media.URL = reHanxiaoquanMediaAny.FindString(retryBody)
+				}
+				if strings.HasPrefix(media.URL, "//") {
+					media.URL = "https:" + media.URL
+				}
+			}
+			media.credentials = &providerMediaCredentials{directAutoProxy: true}
+			resolved, err = d.prepareWebProviderMedia(retryContext, media, "韩小圈")
+			if err == nil {
+				return resolved, nil
+			}
+			if strings.Contains(err.Error(), "HTTP 404") {
+				select {
+				case <-time.After(time.Second):
+				case <-ctx.Done():
+					return providerMedia{}, ctx.Err()
+				}
+				resolved, err = d.prepareWebProviderMedia(retryContext, media, "韩小圈")
+				if err == nil {
+					return resolved, nil
+				}
+			}
+			media.credentials = nil
+			return d.prepareWebProviderMedia(ctx, media, "韩小圈")
+		}
+		if !strings.Contains(err.Error(), "HTTP 404") {
+			return resolved, err
+		}
+		select {
+		case <-time.After(time.Second):
+		case <-ctx.Done():
+			return providerMedia{}, ctx.Err()
+		}
 		return d.prepareWebProviderMedia(ctx, media, "韩小圈")
 	}
 	return media, nil
